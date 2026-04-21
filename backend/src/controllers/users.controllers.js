@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { apiError } from "../utils/apiError.js";
 import { apiResponse } from "../utils/apiResponse.js";
+import { verifyJwt } from "../middlewares/auth.middleware.js";
 
 const saltRounds = 10;
  const options ={
@@ -20,7 +21,7 @@ const generateToken = async(userId)=>{
 
         const payload = {id: user.rows[0].id,email: user.rows[0].email,role: user.rows[0].role};
 
-        const accessToken = jwt.sign(payload,process.env.JWT_SECRET,{expiresIn: "1h"});
+        const accessToken = jwt.sign(payload,process.env.ACCESS_TOKEN_SECRET,{expiresIn: "1h"});
         const refreshToken = jwt.sign(payload,process.env.REFRESH_TOKEN_SECRET,{expiresIn: "7d"});
         return { accessToken, refreshToken };
     }catch(error){
@@ -96,8 +97,6 @@ const registerUser = asyncHandler(async (req, res) => {
 
 const loginUser = asyncHandler(async (req, res) => {
     const {email,password} = req.body;
-    console.log("Login attempt with email:", email);
-    console.log("Login attempt with password:", password ? "Provided" : "Not provided");
 
     if([email,password].some(field=>field?.trim()==="")){
         throw new apiError(400,"All fields are required");
@@ -149,7 +148,58 @@ const loginUser = asyncHandler(async (req, res) => {
     ))
 })
 
+const logoutUser = asyncHandler(async (req, res) => {
+    const user = req.user;
+
+    await db.query("update users set refreshtoken = null where id = $1",[user.id]);
+
+    res
+    .status(200)
+    .clearCookie("refreshToken", options)
+    .clearCookie("accessToken", options)
+    .json(new apiResponse(200,null,"Logout successful"));
+});
+
+const refreshTokenUser = asyncHandler(async(req,res)=>{
+    const refreshToken = req.cookies?.refreshToken || req.headers?.authorization?.replace("Bearer ", "");
+
+    if(!refreshToken){
+        throw new apiError(401,"Refresh token not available");
+    }
+
+    const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+
+  
+
+    const user = await db.query("select * from users where id = $1",[decoded.id]);
+
+    if(user.rows.length ===0){
+        throw new apiError(404,"User not found");
+    };
+
+    if(user.rows[0].refreshtoken !== refreshToken){
+        throw new apiError(401,"Refresh token mismatch");
+    }
+
+    const { accessToken, refreshToken: newRefreshToken } = await generateToken(user.rows[0].id);
+
+    if(!accessToken || !newRefreshToken){
+        throw new apiError(500,"failed to generate tokens");
+    };
+
+    await db.query("update users set refreshtoken = $1 where id = $2",[newRefreshToken,user.rows[0].id]);
+
+    res
+    .status(200)
+    .cookie("refreshToken", newRefreshToken, options)
+    .cookie("accessToken", accessToken, options)
+    .json(new apiResponse(200,{accessToken,refreshToken: newRefreshToken},"Tokens refreshed successfully"))
+
+})
+
 export {
     registerUser,
-    loginUser
+    loginUser,
+    logoutUser,
+    refreshTokenUser
 }
