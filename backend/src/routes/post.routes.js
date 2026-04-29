@@ -11,7 +11,7 @@ import {
 
 const router = Router();
 
-router.post("/", verifyJwt, upload.single("image"), createPosts);
+router.post("/create", verifyJwt, upload.single("image"),createPosts);
 router.get("/allposts", getAllPosts); 
 router.get("/:postId", verifyJwt, getPostById); 
 router.patch("/updatepost/:postId",verifyJwt,upload.single("image"),updatePosts);

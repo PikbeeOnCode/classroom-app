@@ -21,8 +21,8 @@ const generateToken = async(userId)=>{
 
         const payload = {id: user.rows[0].id,email: user.rows[0].email,role: user.rows[0].role};
 
-        const accessToken = jwt.sign(payload,process.env.ACCESS_TOKEN_SECRET,{expiresIn: "1h"});
-        const refreshToken = jwt.sign(payload,process.env.REFRESH_TOKEN_SECRET,{expiresIn: "7d"});
+        const accessToken = jwt.sign(payload,process.env.ACCESS_TOKEN_SECRET,{expiresIn: process.env.ACCESS_TOKEN_EXPIRY});
+        const refreshToken = jwt.sign(payload,process.env.REFRESH_TOKEN_SECRET,{expiresIn: process.env.REFRESH_TOKEN_EXPIRY});
         return { accessToken, refreshToken };
     }catch(error){
         throw new apiError(500,"Failed to generate token");
