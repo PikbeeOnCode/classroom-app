@@ -171,12 +171,11 @@ const leaveClassroom = asyncHandler(async (req, res) => {
 
   const role = user.rows[0].role.toLowerCase();
 
- 
-
+  // TEACHER → delete classroom
   if (role === "teacher") {
-     if(classroomExists.rows[0].teacher_id !== userId){
-    throw new apiError(403,"user is  unauthorized to delete classroom")
-  }
+    if (classroomExists.rows[0].teacher_id !== userId) {
+      throw new apiError(403, "Only teacher can delete this classroom");
+    }
 
     await db.query(
       `DELETE FROM classrooms WHERE id = $1`,
@@ -188,7 +187,7 @@ const leaveClassroom = asyncHandler(async (req, res) => {
     );
   }
 
-  // check membership
+  // STUDENT → leave classroom
   const membership = await db.query(
     `SELECT * FROM classroom_members 
      WHERE user_id = $1 AND classroom_id = $2`,
