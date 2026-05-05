@@ -171,7 +171,13 @@ const leaveClassroom = asyncHandler(async (req, res) => {
 
   const role = user.rows[0].role.toLowerCase();
 
+ 
+
   if (role === "teacher") {
+     if(classroomExists.rows[0].teacher_id !== userId){
+    throw new apiError(403,"user is  unauthorized to delete classroom")
+  }
+
     await db.query(
       `DELETE FROM classrooms WHERE id = $1`,
       [classroomId]
