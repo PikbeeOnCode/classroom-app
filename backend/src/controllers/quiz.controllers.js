@@ -206,8 +206,123 @@ const updateQuizData = await db.query(`
 
 
 
+const getQuiz = asyncHandler(async(req,res)=>{
+    const userId = req.user.id;
+    const quizId = req.params.quizId ;
+
+    const existingQuiz = await db.query(` select * from quizzes where id = $1 `,[
+        quizId
+    ]);
+
+    if(existingQuiz.rows.length === 0){
+        throw new apiError(404,"the quiz data from given id is not found ");
+    }
+
+if(!existingQuiz.rows[0].is_published){
+    throw new apiError(403,"the quiz is not published yet try again ");
+}
+
+const classroomMembers = await db.query('select * from classroom_members where classroom_id = $1',
+    [
+        existingQuiz.rows[0].classroom_id,
+    ])
+
+const isMember = classroomMembers.rows.some(
+  member => Number(member.user_id) === Number(userId)
+);
+
+if (!isMember) {
+  throw new apiError(403, "User is not a classroom member");
+};
+
+const hasAlreadySumbitted = await db.query('select * from quiz_results where quiz_id = $1 and student_id = $2',
+    [
+        quizId,
+        userId
+    ]
+);
+
+const alreadySumbitted = hasAlreadySumbitted.rows.length > 0 ;
+
+if(alreadySumbitted){
+    throw new apiError(409,"the user have already attempted the quiz ");
+};
+
+const existingAttempt = await db.query('select  * from quiz_attempts where student_id = $1 and quiz_id = $2',[
+    userId,
+    quizId
+]);
+
+
+if(existingAttempt.rows.length > 0){
+        // return same questions as before!
+        const savedQuestionIds = existingAttempt.rows[0].question_ids
+        const sameQuestions = await db.query(
+            "SELECT id, question, options FROM questions WHERE id = ANY($1::int[])",
+            [savedQuestionIds]
+        );
+
+        const orderedQuestions = savedQuestionIds.map(id =>
+    sameQuestions.rows.find(q => q.id === id)
+        );
+        return res.status(200).json(
+            new apiResponse(200, {
+                quiz: existingQuiz.rows[0],
+                questions: orderedQuestions
+            }, "questions fetched successfully")
+        )
+    }
+
+const questions = await db.query(` 
+    select id,question,options from questions 
+    where quiz_id = $1 
+    order by random()
+    limit $2
+    `,[
+        quizId,
+        existingQuiz.rows[0].total_questions
+    ])
+
+const getQuestions = questions.rows.length > 0;
+
+if(!getQuestions){
+    throw new apiError(404,"question not available , try again ")
+};
+
+const selectedQuestions = questions.rows;
+
+const questionIds = selectedQuestions.map(q => q.id)
+await db.query(
+  "INSERT INTO quiz_attempts (student_id, quiz_id, question_ids) VALUES ($1, $2, $3)",
+  [userId, quizId, JSON.stringify(questionIds)]
+)
+return res.status(201).json(
+    new apiResponse(201,
+        { 
+            quiz: existingQuiz.rows[0],
+            questions: questions.rows  
+        },
+        "question fetched sucessfully"
+    )
+)
+
+});
+
+const sumbitQuiz = asyncHandler(async(req,res)=>{
+    const userId = req.user.id;
+    const quizId = req.params.quizId;
+    const answers = req.bdoy.answers;
+})
+
+
+
+
+
+
+
 export {
     createQuiz,
     addQuestion,
-    publishQuiz
+    publishQuiz,
+    getQuiz
 }
