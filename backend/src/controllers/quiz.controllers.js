@@ -465,7 +465,7 @@ const submitQuiz = asyncHandler(async (req, res) => {
 
 const getResult = asyncHandler(async(req,res)=>{
     const userId = req.user.id;
-    const quizId = req.parans.quizId;
+    const quizId = req.params.quizId;
 
 
     if(!userId){
@@ -476,8 +476,80 @@ const getResult = asyncHandler(async(req,res)=>{
         throw new apiError(404,"quiz id is required from params ")
     };
 
+    const studentResult = await db.query("select * from quiz_results where quiz_id = $1 and student_id = $2",
+        [
+            quizId,
+            userId
+        ]
+    )
+
+    if(studentResult.rows.length === 0){
+        throw new apiError(404,"the student result is not availabmle at the moment");
+    }
+
+    res.status(200).json(
+        new apiResponse(
+            200,
+            {
+                result:studentResult.rows[0]
+            },
+            "student result fetched sucessfully"
+        )
+    )
+});
+
+
+const getAllResults = asyncHandler(async(req,res)=>{
+    const userId = req.user.id;
+    const quizId = req.params.quizId;
+
+
+    if(!userId){
+        throw new apiError(404,"user id  is required ")
+    };
+
+    if(!quizId){
+        throw new apiError(404,"quiz id is required from params ")
+    };
+
+    const userData = await db.query("select * from users  where id = $1 ",[userId]);
     
-})
+    if(userData.rows.length === 0){
+        throw new apiError(404,"user data is not found ");
+    }
+
+    if(userData.rows[0].role!=="teacher"){
+        throw new apiError(403,"user is not authorized to get result ")
+    }
+
+    const allStudentsResult = await db.query(`SELECT 
+                qr.student_id,
+                u.username,
+                qr.score,
+                qr.total
+            FROM quiz_results qr
+            JOIN users u ON qr.student_id = u.id
+            WHERE qr.quiz_id = $1
+            ORDER BY qr.score DESC; `,
+        [
+            quizId
+        ]
+    );
+
+    if(!allStudentsResult.rows.length === 0){
+        throw new apiError(404,"student data not found ");
+    };
+
+    return res.status(200).json(
+        new apiResponse(200,
+            {
+                results: allStudentsResult.rows[0]
+            },
+            "all student result data fetched "
+        )
+    )
+});
+
 
 
 
@@ -488,5 +560,7 @@ export {
     addQuestion,
     publishQuiz,
     getQuiz,
-    submitQuiz
+    submitQuiz,
+    getResult,
+    getAllResults
 }

@@ -5,7 +5,9 @@ import {
      addQuestion,
      publishQuiz,
      getQuiz,
-     submitQuiz
+     submitQuiz,
+     getResult,
+     getAllResults
      }from"../controllers/quiz.controllers.js"
 
 
@@ -16,5 +18,6 @@ router.post("/qadd/:quizId",verifyJwt,addQuestion);
 router.patch("/publishq/:quizId",verifyJwt,publishQuiz)
 router.get("/getq/:quizId",verifyJwt,getQuiz);
 router.post("/:quizId/submit",verifyJwt,submitQuiz)
-
+router.get("/:quizId/result",verifyJwt,getResult);
+router.get("/:quizId/allresult",verifyJwt,getAllResults);
 export default router
