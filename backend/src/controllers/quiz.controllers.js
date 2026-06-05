@@ -308,13 +308,176 @@ return res.status(201).json(
 
 });
 
-const sumbitQuiz = asyncHandler(async(req,res)=>{
+const submitQuiz = asyncHandler(async (req, res) => {
     const userId = req.user.id;
     const quizId = req.params.quizId;
-    const answers = req.bdoy.answers;
+    const answers = req.body.answers;
+
+    if (!userId) {
+        throw new apiError(403, "User id is required");
+    }
+
+    if (!quizId) {
+        throw new apiError(403, "Quiz id is required");
+    }
+
+    if (req.user.role !== "student") {
+        throw new apiError(403, "Only students can submit quiz");
+    }
+
+    if (!Array.isArray(answers) || answers.length === 0) {
+        throw new apiError(400, "Answers are required");
+    }
+
+    const hasValidAnswers = answers.every(
+        answer =>
+            answer.questionId !== undefined &&
+            answer.selectedAnswer !== undefined
+    );
+
+    if (!hasValidAnswers) {
+        throw new apiError(
+            400,
+            "All answers must include questionId and selectedAnswer"
+        );
+    }
+
+    const existingAttempt = await db.query(
+        `
+        SELECT *
+        FROM quiz_attempts
+        WHERE student_id = $1
+        AND quiz_id = $2
+        `,
+        [userId, quizId]
+    );
+
+    if (existingAttempt.rows.length === 0) {
+        throw new apiError(404, "Quiz attempt not found");
+    }
+
+    const quizAttempt = existingAttempt.rows[0];
+
+    if (quizAttempt.is_submitted) {
+        throw new apiError(409, "Quiz already submitted");
+    }
+
+    const questionIds = quizAttempt.question_ids;
+
+    const assignedQuestions = await db.query(
+        `
+        SELECT id, correct_answer
+        FROM questions
+        WHERE id = ANY($1)
+        `,
+        [questionIds]
+    );
+
+    const answerMap = new Map();
+
+    assignedQuestions.rows.forEach(question => {
+        answerMap.set(question.id, question.correct_answer);
+    });
+
+    let correctAnswerCount = 0;
+
+    answers.forEach(answer => {
+        const correctAnswer = answerMap.get(answer.questionId);
+
+        if (answer.selectedAnswer === correctAnswer) {
+            correctAnswerCount++;
+        }
+    });
+
+    const quiz = await db.query(
+        `
+        SELECT *
+        FROM quizzes
+        WHERE id = $1
+        `,
+        [quizId]
+    );
+
+    if (quiz.rows.length === 0) {
+        throw new apiError(404, "Quiz not found");
+    }
+
+    const totalQuestions = quiz.rows[0].total_questions;
+
+    const scorePercentage =
+        (correctAnswerCount / totalQuestions) * 100;
+
+    const isPassed =
+        scorePercentage >= quiz.rows[0].passing_score;
+
+    const quizResult = await db.query(
+        `
+        INSERT INTO quiz_results
+        (
+            student_id,
+            quiz_id,
+            score,
+            total
+        )
+        VALUES ($1, $2, $3, $4)
+        RETURNING *
+        `,
+        [
+            userId,
+            quizId,
+            scorePercentage,
+            totalQuestions
+        ]
+    );
+
+    if (quizResult.rows.length === 0) {
+        throw new apiError(500, "Failed to save quiz result");
+    }
+
+    const updatedAttempt = await db.query(
+        `
+        UPDATE quiz_attempts
+        SET is_submitted = true
+        WHERE student_id = $1
+        AND quiz_id = $2
+        RETURNING *
+        `,
+        [userId, quizId]
+    );
+
+    if (updatedAttempt.rows.length === 0) {
+        throw new apiError(500, "Failed to update quiz attempt");
+    }
+
+    return res.status(200).json(
+        new apiResponse(
+            200,
+            {
+                score: correctAnswerCount,
+                total: totalQuestions,
+                percentage: scorePercentage,
+                passed: isPassed
+            },
+            "Quiz submitted successfully"
+        )
+    );
+});
+
+const getResult = asyncHandler(async(req,res)=>{
+    const userId = req.user.id;
+    const quizId = req.parans.quizId;
+
+
+    if(!userId){
+        throw new apiError(404,"user id  is required ")
+    };
+
+    if(!quizId){
+        throw new apiError(404,"quiz id is required from params ")
+    };
+
+    
 })
-
-
 
 
 
@@ -324,5 +487,6 @@ export {
     createQuiz,
     addQuestion,
     publishQuiz,
-    getQuiz
+    getQuiz,
+    submitQuiz
 }
