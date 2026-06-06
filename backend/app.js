@@ -8,6 +8,9 @@ import commentRouter from "./src/routes/comment.routes.js"
 import likeRouter from "./src/routes/likes.routes.js"
 import classroomRoutes from "./src/routes/classroom.routes.js"
 import quizRoutes from"./src/routes/quiz.routes.js"
+import noteRouter from "./src/routes/notes.routes.js"
+
+
 const app = express();
 
 app.use(cors());
@@ -21,6 +24,8 @@ app.use("/api/v1/comments",commentRouter)
 app.use("/api/v1/likes",likeRouter)
 app.use("/api/v1/classrooms",classroomRoutes)
 app.use("/api/v1/quizzes",quizRoutes)
+app.use("/api/v1/notes",noteRouter)
+
 
 
 export { app };
